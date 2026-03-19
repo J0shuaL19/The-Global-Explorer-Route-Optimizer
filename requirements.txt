@@ -1,0 +1,7 @@
+# CS 5800 - Global Explorer Route Optimizer
+# Core dependencies (minimal for starter)
+
+# Optional: uncomment as needed during development
+# networkx>=3.0      # Graph representation
+# matplotlib>=3.5    # Route visualization
+# pytest>=7.0        # Testing

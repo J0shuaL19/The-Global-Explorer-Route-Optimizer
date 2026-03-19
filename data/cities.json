@@ -1,0 +1,11 @@
+{
+  "cities": ["Tokyo", "Kyoto", "Osaka", "Nara", "Hakone"],
+  "cost_matrix": [
+    [0, 130, 140, 100, 90],
+    [130, 0, 50, 45, 120],
+    [140, 50, 0, 55, 130],
+    [100, 45, 55, 0, 95],
+    [90, 120, 130, 95, 0]
+  ],
+  "description": "Sample travel costs (minutes) between Japan cities. Rows/cols: Tokyo, Kyoto, Osaka, Nara, Hakone."
+}
