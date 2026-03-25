@@ -3,59 +3,89 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Held-Karp TSP - Stage 1</title>
+  <title>Held-Karp TSP - Stage 2</title>
+  <script>
+    window.MathJax = {
+      tex: { inlineMath: [["\\(", "\\)"], ["$", "$"]] },
+      svg: { fontCache: "global" }
+    };
+  </script>
+  <script id="mathjax-script" defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
   <style>
     * { box-sizing: border-box; }
-    body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; background: #e9eef8; color: #0f172a; min-height: 100vh; }
-    .shell { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(320px, 1fr); min-height: 100vh; }
-    .map-wrap { padding: 12px; background: #dde5f4; }
-    .map-card { position: relative; height: min(94vh, 920px); border: 1px solid #c7d1e2; border-radius: 14px; overflow: hidden; background: #eef2ff; box-shadow: 0 10px 28px rgba(15, 23, 42, 0.12); }
-    .map-stage { position: relative; width: 100%; height: 100%; }
+    body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; background: #e8ecf4; color: #111827; min-height: 100vh; }
+    .shell { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(320px, 0.95fr); min-height: 100vh; }
+    .map-wrap { position: relative; background: #dfe5f2; padding: 12px; display: flex; align-items: stretch; }
+    .map-card { position: relative; flex: 1; border-radius: 16px; overflow: hidden; border: 1px solid #c7d0e0; box-shadow: 0 12px 40px rgba(17, 24, 39, 0.12); height: min(94vh, 960px); }
+    .map-stage { position: relative; width: 100%; height: 100%; background: #eef2ff; }
     .map-bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; object-position: center; user-select: none; pointer-events: none; }
-    .city { position: absolute; transform: translate(-50%, -50%); z-index: 2; pointer-events: none; width: 118px; height: 118px; display: flex; align-items: center; justify-content: center; }
-    .city img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 5px 10px rgba(0, 0, 0, 0.22)); }
-    .panel { background: #f8fafc; border-left: 1px solid #cbd5e1; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; }
-    h1 { margin: 0; font-size: 1.08rem; letter-spacing: -0.02em; }
-    .hint { margin: 0; color: #64748b; font-size: 0.8rem; line-height: 1.5; }
+    svg.edge-layer { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+    .city { position: absolute; transform: translate(-50%, -50%); z-index: 3; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+    .city img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 6px 12px rgba(0,0,0,0.2)); }
+    .edge-path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+    .edge-path.selected { filter: drop-shadow(0 1px 2px rgba(30, 41, 59, 0.18)); }
+    .edge-path.active { filter: drop-shadow(0 2px 8px rgba(194, 65, 12, 0.45)); }
+    .edge-label { font-weight: 800; dominant-baseline: middle; text-anchor: middle; }
+    .map-edge-legend { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); z-index: 7; background: rgba(255,255,255,0.95); border: 1px solid #b8c5db; border-radius: 14px; box-shadow: 0 6px 16px rgba(17, 24, 39, 0.14); padding: 10px 16px; display: flex; gap: 12px 24px; align-items: center; justify-content: center; flex-wrap: wrap; }
+    .legend-item { display: inline-flex; align-items: center; gap: 10px; font-size: 0.9rem; font-weight: 700; color: #24364f; }
+    .legend-line { width: 52px; height: 0; border-top: 6px solid; border-radius: 999px; flex-shrink: 0; }
+    .legend-line.selected { border-top-color: #5a2b22; }
+    .legend-line.active { border-top-color: #ea580c; }
+    .panel { background: #f8fafc; border-left: 1px solid #cbd5e1; padding: 20px 22px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; max-height: 100vh; }
+    h1 { margin: 0; font-size: 1.12rem; font-weight: 800; letter-spacing: -0.02em; }
+    .hint { margin: 0; font-size: 0.8rem; color: #64748b; line-height: 1.5; }
     .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-    .controls label { font-size: 0.8rem; font-weight: 700; color: #475569; }
-    select, button { border: 1px solid #cbd5e1; border-radius: 10px; background: #fff; padding: 8px 12px; font-size: 0.82rem; font-weight: 700; color: #0f172a; }
-    button { cursor: pointer; background: #1e293b; border-color: #1e293b; color: #fff; }
-    button.secondary { background: #fff; color: #1e293b; border-color: #cbd5e1; }
-    .scrubber { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 9px 10px; display: grid; gap: 6px; }
-    .scrubber .title { text-transform: uppercase; font-size: 0.68rem; letter-spacing: 0.05em; font-weight: 800; color: #64748b; }
-    .scrubber .row { display: flex; align-items: center; gap: 10px; }
-    #stepSlider { flex: 1; min-width: 0; accent-color: #4338ca; }
-    .chip { display: inline-block; background: #eef2ff; border: 1px solid #c7d2fe; color: #312e81; border-radius: 999px; padding: 7px 12px; font-size: 0.8rem; font-weight: 800; line-height: 1.35; }
-    .box { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 11px 12px; display: grid; gap: 8px; }
-    .ttl { margin: 0; text-transform: uppercase; letter-spacing: 0.05em; font-size: 0.7rem; color: #64748b; font-weight: 800; }
-    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.82rem; line-height: 1.45; color: #0f172a; margin: 0; word-break: break-word; }
-    ul.candidates { margin: 0; padding-left: 18px; display: grid; gap: 5px; }
-    ul.candidates li { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.8rem; line-height: 1.4; color: #0f172a; word-break: break-word; }
-    .legend { font-size: 0.76rem; color: #64748b; line-height: 1.45; border-top: 1px solid #e2e8f0; padding-top: 8px; }
-    @media (max-width: 980px) {
+    .controls label { font-size: 0.8rem; font-weight: 700; color: #475569; margin-right: 4px; }
+    select, button { padding: 8px 12px; border-radius: 10px; border: 1px solid #cbd5e1; background: #fff; font-weight: 700; font-size: 0.82rem; }
+    button { border: none; background: #1e293b; color: #fff; cursor: pointer; }
+    button.secondary { background: #fff; color: #1e293b; border: 1px solid #cbd5e1; }
+    .scrubber { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; }
+    .scrubber .title { font-size: 0.68rem; font-weight: 800; color: #64748b; letter-spacing: 0.06em; text-transform: uppercase; }
+    .scrubber .row { display: flex; align-items: center; gap: 12px; }
+    #stepSlider { flex: 1; min-width: 0; height: 30px; accent-color: #4338ca; }
+    .meta { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.74rem; font-weight: 800; color: #334155; min-width: 5.5em; text-align: right; flex-shrink: 0; }
+    .chip { display: block; width: 100%; padding: 8px 12px; border-radius: 12px; font-size: 0.8rem; font-weight: 700; background: #eef2ff; color: #1e1b7a; border: 1px solid #c7d2fe; line-height: 1.35; }
+    .chip .k { color: #3730a3; font-weight: 800; margin-right: 6px; }
+    .formula { background: #fff; border: 1px solid #dbeafe; border-radius: 14px; padding: 12px 14px; display: grid; gap: 6px; }
+    .formula .t { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: #1d4ed8; }
+    .formula .m { display: flex; justify-content: center; color: #111827; text-align: center; white-space: nowrap; overflow-x: auto; padding: 2px 0 6px; }
+    .formula .m mjx-container[display="true"] { margin: 0 !important; font-size: 122%; }
+    .formula .n { font-size: 0.78rem; color: #334155; line-height: 1.5; }
+    .box { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 12px 14px; display: grid; gap: 10px; }
+    .head { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: #475569; }
+    .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 0.83rem; line-height: 1.5; color: #0f172a; margin: 0; word-break: break-word; }
+    .cands { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+    .cands li { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.82rem; line-height: 1.42; color: #0f172a; word-break: break-word; }
+    @media (max-width: 960px) {
       .shell { grid-template-columns: 1fr; }
-      .panel { border-left: none; border-top: 1px solid #cbd5e1; }
       .map-card { height: min(52vh, 460px); }
-      .city { width: 84px; height: 84px; }
+      .panel { border-left: none; border-top: 1px solid #cbd5e1; max-height: none; }
+      .map-edge-legend { width: calc(100% - 18px); max-width: 520px; padding: 9px 10px; gap: 10px 16px; }
+      .legend-item { font-size: 0.84rem; }
+      .legend-line { width: 40px; border-top-width: 5px; }
     }
   </style>
 </head>
 <body>
   <div class="shell">
-    <section class="map-wrap">
+    <div class="map-wrap">
       <div class="map-card">
         <div class="map-stage" id="mapStage">
           <img class="map-bg" id="mapBgImg" src="map.png" alt="US Map" />
+          <svg class="edge-layer" id="edgeLayer"></svg>
+          <div class="map-edge-legend">
+            <div class="legend-item"><span class="legend-line selected"></span><span>Best path for this state</span></div>
+            <div class="legend-item"><span class="legend-line active"></span><span>Current transition edge</span></div>
+          </div>
         </div>
       </div>
-    </section>
+    </div>
     <aside class="panel">
-      <h1>Held-Karp DP Trace (Stage 1)</h1>
-      <p class="hint">可运行基础版：DP步骤与城市高亮可用，边渲染与公式展示留到后续阶段。</p>
+      <h1>Held-Karp DP Trace (Stage 2)</h1>
+      <p class="hint">可运行增强版：加入边权可视化和公式展示，仍保留简化解释结构。</p>
       <div class="controls">
         <label for="startSelect">Start</label>
-        <select id="startSelect"></select>
+        <select id="startSelect" aria-label="Start city"></select>
         <button type="button" class="secondary" id="prevBtn">Prev</button>
         <button type="button" id="nextBtn">Next</button>
         <button type="button" class="secondary" id="playBtn">Play</button>
@@ -66,15 +96,34 @@
         <span class="title">Step scrubber</span>
         <div class="row">
           <input type="range" id="stepSlider" min="0" max="0" value="0" step="1" />
-          <span class="mono" id="scrubberMeta">0 / 0</span>
+          <span class="meta" id="scrubberMeta">0 / 0</span>
         </div>
       </div>
-      <span class="chip" id="stepBadge">Step: —</span>
-      <div class="box"><p class="ttl">State</p><p class="mono" id="stateS">—</p><p class="mono" id="stateJ">—</p></div>
-      <div class="box"><p class="ttl">Rule used</p><p class="mono" id="ruleText">—</p></div>
-      <div class="box"><p class="ttl">Candidates</p><ul class="candidates" id="candidateList"></ul></div>
-      <div class="box"><p class="ttl">Decision</p><p class="mono" id="bestText">—</p><p class="mono" id="valueText">—</p><p class="mono" id="routeText">—</p></div>
-      <div class="legend">当前步骤中，属于子集 S 的城市图标会从灰色切换到彩色。</div>
+      <span class="chip" id="stepBadge"><span class="k">Step:</span>—</span>
+      <div class="formula">
+        <div class="t">Held-Karp recurrence</div>
+        <div class="m" id="formulaMain"></div>
+        <div class="n">S 是已访问集合，j 是终点，i 是上一步终点。每一步比较所有合法 i 取最小值。</div>
+      </div>
+      <div class="box">
+        <span class="head">State</span>
+        <p class="mono" id="stateS">—</p>
+        <p class="mono" id="stateJ">—</p>
+      </div>
+      <div class="box">
+        <span class="head">Rule used in this step</span>
+        <p class="mono" id="ruleText">—</p>
+      </div>
+      <div class="box">
+        <span class="head">Candidates compared</span>
+        <ul class="cands" id="candidateList"></ul>
+      </div>
+      <div class="box">
+        <span class="head">Decision</span>
+        <p class="mono" id="bestText">—</p>
+        <p class="mono" id="valueText">—</p>
+        <p class="mono" id="routeText">—</p>
+      </div>
     </aside>
   </div>
 
@@ -87,44 +136,58 @@
       [357, 320, 259, 158, 0, 138],
       [328, 309, 228, 208, 138, 0]
     ];
-
     const CITIES = [
-      { id: "sf", code: "SF", name: "San Francisco", x: 12, y: 42, gray: "sf_gray.png", color: "sf_color.png", size: 176 },
-      { id: "la", code: "LA", name: "Los Angeles", x: 15, y: 59, gray: "la_gray.png", color: "la_color.png", size: 176 },
-      { id: "denver", code: "Denver", name: "Denver", x: 38, y: 45, gray: "DENVER_gray.png", color: "DENVER_color.png", size: 176 },
-      { id: "houston", code: "Houston", name: "Houston", x: 51, y: 75, gray: "houston_gray.png", color: "houston_color.png", size: 176 },
-      { id: "miami", code: "MIA", name: "Miami", x: 76, y: 81, gray: "MIAMI_gray.png", color: "MIAMI_color.png", size: 176 },
-      { id: "newyork", code: "NY", name: "New York", x: 82, y: 36, gray: "NY_gray.png", color: "NY_color.png", size: 176 }
+      { id: "sf", code: "SF", name: "San Francisco", x: 12, y: 42, gray: "sf_gray.png", color: "sf_color.png", size: 200 },
+      { id: "la", code: "LA", name: "Los Angeles", x: 15, y: 59, gray: "la_gray.png", color: "la_color.png", size: 200 },
+      { id: "denver", code: "Denver", name: "Denver", x: 38, y: 45, gray: "DENVER_gray.png", color: "DENVER_color.png", size: 200 },
+      { id: "houston", code: "Houston", name: "Houston", x: 51, y: 75, gray: "houston_gray.png", color: "houston_color.png", size: 200 },
+      { id: "miami", code: "MIA", name: "Miami", x: 76, y: 81, gray: "MIAMI_gray.png", color: "MIAMI_color.png", size: 200 },
+      { id: "newyork", code: "NY", name: "New York", x: 82, y: 36, gray: "NY_gray.png", color: "NY_color.png", size: 200 }
     ];
+    const EDGE_STYLE = {
+      "denver-houston": { curve: 10, t: 0.40, nudge: -12 },
+      "denver-la": { curve: -14, t: 0.62, nudge: -14 },
+      "denver-miami": { curve: 22, t: 0.34, nudge: -14 },
+      "denver-newyork": { curve: -20, t: 0.58, nudge: 20 },
+      "denver-sf": { curve: 16, t: 0.44, nudge: -18 },
+      "houston-la": { curve: 12, t: 0.35, nudge: 12 },
+      "houston-miami": { curve: -8, t: 0.52, nudge: -10 },
+      "houston-newyork": { curve: 14, t: 0.52, nudge: 18 },
+      "houston-sf": { curve: -22, t: 0.48, nudge: 22 },
+      "la-miami": { curve: -28, t: 0.43, nudge: -14 },
+      "la-newyork": { curve: 24, t: 0.54, nudge: 14 },
+      "la-sf": { curve: 8, t: 0.5, nudge: 8 },
+      "miami-newyork": { curve: 14, t: 0.4, nudge: -16 },
+      "miami-sf": { curve: -18, t: 0.56, nudge: 10 },
+      "newyork-sf": { curve: -26, t: 0.47, nudge: -12 }
+    };
 
     const n = CITIES.length;
     const INF = 1e15;
+    const MAP_LAYOUT_REF = 520;
     const cityElements = new Map();
 
-    const mapStage = document.getElementById("mapStage");
-    const mapBgImg = document.getElementById("mapBgImg");
-    const startSelect = document.getElementById("startSelect");
-    const stepSlider = document.getElementById("stepSlider");
-    const scrubberMeta = document.getElementById("scrubberMeta");
-    const stepBadge = document.getElementById("stepBadge");
-    const stateS = document.getElementById("stateS");
-    const stateJ = document.getElementById("stateJ");
-    const ruleText = document.getElementById("ruleText");
-    const candidateList = document.getElementById("candidateList");
-    const bestText = document.getElementById("bestText");
-    const valueText = document.getElementById("valueText");
-    const routeText = document.getElementById("routeText");
-    const playBtn = document.getElementById("playBtn");
-
-    let steps = [];
-    let currentStep = 0;
-    let timer = null;
-
+    function edgeKey(a, b) { return a < b ? `${a}-${b}` : `${b}-${a}`; }
     function has(mask, i) { return ((mask >> i) & 1) !== 0; }
     function popcount(mask) { let c = 0; for (; mask; mask &= mask - 1) c++; return c; }
     function codeOf(idx) { return CITIES[idx].code || CITIES[idx].name; }
-    function maskToCodes(mask) { const a = []; for (let i = 0; i < n; i++) if (has(mask, i)) a.push(codeOf(i)); return a.join(","); }
+    function maskToCodes(mask) { const arr = []; for (let i = 0; i < n; i++) if (has(mask, i)) arr.push(codeOf(i)); return arr.join(","); }
     function distIJ(i, j) { return DIST[i][j]; }
+    function getCityById(id) { return CITIES.find((c) => c.id === id); }
+
+    function buildEdges() {
+      const list = [];
+      for (let i = 0; i < n; i++) {
+        for (let j = i + 1; j < n; j++) {
+          const a = CITIES[i].id, b = CITIES[j].id;
+          const key = edgeKey(a, b);
+          const st = EDGE_STYLE[key] || { curve: 0, t: 0.5, nudge: 0 };
+          list.push({ id: key, from: a, to: b, label: String(DIST[i][j]), curve: st.curve, labelT: st.t, labelNudge: st.nudge != null ? st.nudge : 0 });
+        }
+      }
+      return list;
+    }
+    const EDGES = buildEdges();
 
     function reconstructPathIndices(dp, start, mask, end) {
       const startMask = 1 << start;
@@ -135,30 +198,35 @@
       while (m !== startMask) {
         const entry = dp[m][cur];
         if (!entry || entry.pred == null || entry.pred < 0) return [];
-        rev.push(entry.pred);
+        const prev = entry.pred;
+        rev.push(prev);
         m ^= (1 << cur);
-        cur = entry.pred;
+        cur = prev;
         guard += 1;
         if (guard > n + 2) return [];
       }
       rev.reverse();
       return rev;
     }
+    function edgeIdsFromRoute(routeIndices) {
+      const ids = [];
+      for (let i = 0; i < routeIndices.length - 1; i++) {
+        const a = CITIES[routeIndices[i]].id;
+        const b = CITIES[routeIndices[i + 1]].id;
+        ids.push(edgeKey(a, b));
+      }
+      return ids;
+    }
 
     function computeHeldKarpSteps(start) {
-      const result = [];
+      const steps = [];
       const dp = Array.from({ length: 1 << n }, () => Array(n).fill(null));
       const startMask = 1 << start;
       dp[startMask][start] = { cost: 0, pred: -1 };
-      result.push({
-        title: "Base case",
-        subsetMask: startMask,
-        endpointIdx: start,
-        ruleText: "Initialize dp[{s}][s]=0",
-        candidates: ["No predecessor needed"],
-        bestText: "Best predecessor: N/A",
-        valueText: "Value: dp[S][j]=0",
-        routeText: codeOf(start)
+      steps.push({
+        title: "Base case", subsetMask: startMask, endpointIdx: start, activeEdgeId: null, selectedEdgeIds: [],
+        ruleText: "Base case initialization", candidates: ["No predecessor needed"], bestText: "Best predecessor: N/A",
+        valueText: "Value: dp[S][j] = 0", routeText: codeOf(start)
       });
       for (let sz = 2; sz <= n; sz++) {
         for (let mask = 0; mask < (1 << n); mask++) {
@@ -167,158 +235,73 @@
             if (!has(mask, j) || j === start) continue;
             const prevMask = mask ^ (1 << j);
             let best = INF, bestI = -1;
-            const cand = [];
+            const candidateParts = [];
             for (let i = 0; i < n; i++) {
               if (!has(prevMask, i) || i === j) continue;
               if (i === start && prevMask !== startMask) continue;
               const sub = dp[prevMask][i];
               if (!sub) continue;
-              const v = sub.cost + distIJ(i, j);
-              cand.push(`${codeOf(i)}: ${sub.cost}+${distIJ(i, j)}=${v}`);
+              const w = distIJ(i, j);
+              const v = sub.cost + w;
+              candidateParts.push(`${codeOf(i)}: ${sub.cost} + ${w} = ${v}`);
               if (v < best) { best = v; bestI = i; }
             }
             if (best >= INF) continue;
             dp[mask][j] = { cost: best, pred: bestI };
-            const route = reconstructPathIndices(dp, start, mask, j).map(codeOf).join(" -> ") || "—";
-            result.push({
-              title: `|S|=${sz}, j=${codeOf(j)}`,
-              subsetMask: mask,
-              endpointIdx: j,
-              ruleText: `Compare all i in S-{${codeOf(j)}}`,
-              candidates: cand,
-              bestText: `Best predecessor: i=${codeOf(bestI)}`,
-              valueText: `Value: dp[S][${codeOf(j)}]=${best}`,
-              routeText: route
+            const eid = edgeKey(CITIES[bestI].id, CITIES[j].id);
+            const route = reconstructPathIndices(dp, start, mask, j);
+            steps.push({
+              title: `|S|=${sz}, j=${codeOf(j)}`, subsetMask: mask, endpointIdx: j, activeEdgeId: eid, selectedEdgeIds: edgeIdsFromRoute(route),
+              ruleText: `Compare i in S-{${codeOf(j)}}`, candidates: candidateParts, bestText: `Best predecessor: i=${codeOf(bestI)}`,
+              valueText: `Value: dp[S][${codeOf(j)}] = ${best}`, routeText: route.length ? route.map(codeOf).join(" -> ") : "—"
             });
           }
         }
       }
       const full = (1 << n) - 1;
       let bestEnd = -1, bestTour = INF;
-      const close = [];
+      const closeTerms = [];
       for (let j = 0; j < n; j++) {
         if (j === start) continue;
         const sub = dp[full][j];
         if (!sub) continue;
-        const v = sub.cost + distIJ(j, start);
-        close.push(`${codeOf(j)}: ${sub.cost}+${distIJ(j, start)}=${v}`);
+        const back = distIJ(j, start);
+        const v = sub.cost + back;
+        closeTerms.push(`${codeOf(j)}: ${sub.cost} + ${back} = ${v}`);
         if (v < bestTour) { bestTour = v; bestEnd = j; }
       }
-      const toEnd = bestEnd >= 0 ? reconstructPathIndices(dp, start, full, bestEnd) : [];
-      const finalRoute = toEnd.length ? [...toEnd, start] : [];
-      result.push({
-        title: "Close tour",
-        subsetMask: full,
-        endpointIdx: start,
-        ruleText: "Choose best city to return to start",
-        candidates: close,
-        bestText: `Best predecessor city: ${bestEnd >= 0 ? codeOf(bestEnd) : "(none)"}`,
-        valueText: `Best tour value: ${bestEnd >= 0 ? bestTour : "(none)"}`,
-        routeText: finalRoute.length ? finalRoute.map(codeOf).join(" -> ") : "—"
+      const closeEdge = bestEnd >= 0 ? edgeKey(CITIES[bestEnd].id, CITIES[start].id) : null;
+      const routeToEnd = bestEnd >= 0 ? reconstructPathIndices(dp, start, full, bestEnd) : [];
+      const finalRoute = routeToEnd.length ? [...routeToEnd, start] : [];
+      steps.push({
+        title: "Close tour", subsetMask: full, endpointIdx: start, activeEdgeId: closeEdge, selectedEdgeIds: edgeIdsFromRoute(finalRoute),
+        ruleText: "Return to start city", candidates: closeTerms, bestText: `Best predecessor city: ${bestEnd >= 0 ? codeOf(bestEnd) : "(none)"}`,
+        valueText: `Value: best tour = ${bestEnd >= 0 ? bestTour : "(none)"}`, routeText: finalRoute.length ? finalRoute.map(codeOf).join(" -> ") : "—"
       });
-      return result;
+      return steps;
     }
 
-    function getMapContentRect() {
-      const stage = mapStage.getBoundingClientRect();
-      if (!mapBgImg || !mapBgImg.naturalWidth) return { left: 0, top: 0, width: stage.width, height: stage.height };
-      const ir = mapBgImg.getBoundingClientRect();
-      return { left: ir.left - stage.left, top: ir.top - stage.top, width: ir.width, height: ir.height };
-    }
+    const mapStage = document.getElementById("mapStage");
+    const mapBgImg = document.getElementById("mapBgImg");
+    const edgeLayer = document.getElementById("edgeLayer");
+    const startSelect = document.getElementById("startSelect");
+    const playBtn = document.getElementById("playBtn");
+    const stepBadge = document.getElementById("stepBadge");
+    const stepSlider = document.getElementById("stepSlider");
+    const scrubberMeta = document.getElementById("scrubberMeta");
+    const stateS = document.getElementById("stateS");
+    const stateJ = document.getElementById("stateJ");
+    const ruleText = document.getElementById("ruleText");
+    const candidateList = document.getElementById("candidateList");
+    const bestText = document.getElementById("bestText");
+    const valueText = document.getElementById("valueText");
+    const routeText = document.getElementById("routeText");
+    const formulaMain = document.getElementById("formulaMain");
 
-    function createCityNodes() {
-      CITIES.forEach((city) => {
-        const div = document.createElement("div");
-        div.className = "city";
-        div.dataset.cityId = city.id;
-        const img = document.createElement("img");
-        img.src = city.gray;
-        img.alt = city.name;
-        div.appendChild(img);
-        mapStage.appendChild(div);
-        cityElements.set(city.id, { wrapper: div, img });
-      });
-    }
-
-    function positionCityNodes() {
-      const r = getMapContentRect();
-      CITIES.forEach((city) => {
-        const elem = cityElements.get(city.id);
-        if (!elem) return;
-        const w = city.size || 140;
-        elem.wrapper.style.width = `${w}px`;
-        elem.wrapper.style.height = `${w}px`;
-        elem.wrapper.style.left = `${r.left + (r.width * city.x) / 100}px`;
-        elem.wrapper.style.top = `${r.top + (r.height * city.y) / 100}px`;
-      });
-    }
-
-    function renderCitiesFromMask(mask) {
-      CITIES.forEach((city, i) => {
-        const elem = cityElements.get(city.id);
-        if (!elem) return;
-        elem.img.src = has(mask, i) ? city.color : city.gray;
-      });
-    }
-
-    function syncSlider() {
-      if (!steps.length) {
-        stepSlider.disabled = true;
-        stepSlider.min = "0";
-        stepSlider.max = "0";
-        stepSlider.value = "0";
-        scrubberMeta.textContent = "0 / 0";
-        return;
-      }
-      stepSlider.disabled = false;
-      stepSlider.min = "0";
-      stepSlider.max = String(steps.length - 1);
-      stepSlider.value = String(currentStep);
-      scrubberMeta.textContent = `${currentStep + 1} / ${steps.length}`;
-    }
-
-    function renderStep(idx) {
-      if (!steps.length) return;
-      currentStep = Math.max(0, Math.min(idx, steps.length - 1));
-      const step = steps[currentStep];
-      renderCitiesFromMask(step.subsetMask);
-      stepBadge.textContent = `Step: ${currentStep + 1} / ${steps.length} (${step.title})`;
-      stateS.textContent = `S={${maskToCodes(step.subsetMask)}}`;
-      stateJ.textContent = `j=${codeOf(step.endpointIdx)}`;
-      ruleText.textContent = step.ruleText || "—";
-      bestText.textContent = step.bestText || "—";
-      valueText.textContent = step.valueText || "—";
-      routeText.textContent = `Route: ${step.routeText || "—"}`;
-      candidateList.innerHTML = "";
-      const arr = Array.isArray(step.candidates) ? step.candidates : [];
-      if (!arr.length) {
-        const li = document.createElement("li");
-        li.textContent = "—";
-        candidateList.appendChild(li);
-      } else {
-        arr.forEach((item) => {
-          const li = document.createElement("li");
-          li.textContent = item;
-          candidateList.appendChild(li);
-        });
-      }
-      syncSlider();
-    }
-
-    function stopPlay() {
-      if (timer) {
-        clearInterval(timer);
-        timer = null;
-        playBtn.textContent = "Play";
-      }
-    }
-
-    function rebuild() {
-      stopPlay();
-      const start = parseInt(startSelect.value, 10) || 0;
-      steps = computeHeldKarpSteps(start);
-      renderStep(0);
-    }
+    let currentStep = 0;
+    let playTimer = null;
+    let steps = [];
+    let formulaRenderAttempts = 0;
 
     CITIES.forEach((c, idx) => {
       const opt = document.createElement("option");
@@ -329,100 +312,561 @@
     const defaultStartIdx = CITIES.findIndex((c) => c.id === "denver");
     if (defaultStartIdx >= 0) startSelect.value = String(defaultStartIdx);
 
-    document.getElementById("prevBtn").addEventListener("click", () => renderStep(currentStep - 1));
-    document.getElementById("nextBtn").addEventListener("click", () => renderStep(currentStep + 1));
-    document.getElementById("resetBtn").addEventListener("click", () => { stopPlay(); renderStep(0); });
-    document.getElementById("lastBtn").addEventListener("click", () => { stopPlay(); renderStep(steps.length - 1); });
-    playBtn.addEventListener("click", () => {
-      if (!steps.length) return;
-      if (timer) { stopPlay(); return; }
+    function renderFormula() {
+      const tex = String.raw`\[\displaystyle dp[S][j] = \min_{i\in S-\{j\}}\left(dp[S-\{j\}][i] + w(i,j)\right)\]`;
+      formulaMain.innerHTML = tex;
+      if (window.MathJax && window.MathJax.typesetPromise) {
+        if (window.MathJax.typesetClear) window.MathJax.typesetClear([formulaMain]);
+        window.MathJax.typesetPromise([formulaMain]).catch(() => {
+          formulaMain.textContent = "dp[S][j] = min_{i in S-{j}}(dp[S-{j}][i] + w(i,j))";
+        });
+      } else if (formulaRenderAttempts < 20) {
+        formulaRenderAttempts += 1;
+        setTimeout(renderFormula, 120);
+      } else {
+        formulaMain.textContent = "dp[S][j] = min_{i in S-{j}}(dp[S-{j}][i] + w(i,j))";
+      }
+    }
+
+    function getMapContentRect() {
+      const stage = mapStage.getBoundingClientRect();
+      if (!mapBgImg || !mapBgImg.naturalWidth) return { left: 0, top: 0, width: stage.width, height: stage.height };
+      const ir = mapBgImg.getBoundingClientRect();
+      return { left: ir.left - stage.left, top: ir.top - stage.top, width: ir.width, height: ir.height };
+    }
+    function getMapLayoutScale(r) {
+      if (!r || !r.width || !r.height) return 1;
+      const m = Math.min(r.width, r.height);
+      return Math.min(2.2, Math.max(0.45, m / MAP_LAYOUT_REF));
+    }
+    function percentToPixel(xp, yp) {
+      const r = getMapContentRect();
+      return { x: r.left + (r.width * xp) / 100, y: r.top + (r.height * yp) / 100 };
+    }
+    function quadPoint(x1, y1, cx, cy, x2, y2, t) {
+      const u = 1 - t;
+      return { x: u * u * x1 + 2 * u * t * cx + t * t * x2, y: u * u * y1 + 2 * u * t * cy + t * t * y2 };
+    }
+    function quadTangent(x1, y1, cx, cy, x2, y2, t) {
+      const u = 1 - t;
+      const dx = 2 * u * (cx - x1) + 2 * t * (x2 - cx);
+      const dy = 2 * u * (cy - y1) + 2 * t * (y2 - cy);
+      const len = Math.sqrt(dx * dx + dy * dy) || 1;
+      return { tx: dx / len, ty: dy / len };
+    }
+    function makeQuadraticPath(x1, y1, x2, y2, curve) {
+      const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+      const dx = x2 - x1, dy = y2 - y1;
+      const len = Math.sqrt(dx * dx + dy * dy) || 1;
+      const nx = -dy / len, ny = dx / len;
+      const cx = mx + nx * curve, cy = my + ny * curve;
+      return { d: `M ${x1} ${y1} Q ${cx} ${cy} ${x2} ${y2}`, cx, cy };
+    }
+
+    function createCityNodes() {
+      CITIES.forEach((city) => {
+        const div = document.createElement("div");
+        div.className = "city";
+        div.style.width = `${city.size || 140}px`;
+        div.style.height = `${city.size || 140}px`;
+        div.dataset.cityId = city.id;
+        const img = document.createElement("img");
+        img.src = city.gray;
+        img.alt = city.name;
+        div.appendChild(img);
+        mapStage.appendChild(div);
+        cityElements.set(city.id, { wrapper: div, img });
+      });
+    }
+    function positionCityNodes() {
+      const r = getMapContentRect(), scl = getMapLayoutScale(r);
+      CITIES.forEach((city) => {
+        const elem = cityElements.get(city.id);
+        if (!elem) return;
+        const w = (city.size || 140) * scl;
+        elem.wrapper.style.width = `${w}px`;
+        elem.wrapper.style.height = `${w}px`;
+        elem.wrapper.style.left = `${r.left + (r.width * city.x) / 100}px`;
+        elem.wrapper.style.top = `${r.top + (r.height * city.y) / 100}px`;
+      });
+    }
+    function renderCitiesFromMask(mask) {
+      CITIES.forEach((city, i) => {
+        const elem = cityElements.get(city.id);
+        if (!elem) return;
+        elem.img.src = has(mask, i) ? city.color : city.gray;
+      });
+    }
+
+    function renderEdges(activeEdgeId, selectedEdgeIds = []) {
+      while (edgeLayer.firstChild) edgeLayer.removeChild(edgeLayer.firstChild);
+      const rect = mapStage.getBoundingClientRect();
+      edgeLayer.setAttribute("viewBox", `0 0 ${rect.width} ${rect.height}`);
+      const rMap = getMapContentRect(), scl = getMapLayoutScale(rMap);
+      const sw = 2.8 * scl, swSel = 3.4 * scl, swAct = 5 * scl;
+      const fontPx = 6.5 * scl, fontPxAct = 9 * scl;
+      const selectedSet = new Set(selectedEdgeIds || []);
+      const ordered = [...EDGES].sort((a, b) => (a.id === activeEdgeId ? 1 : (b.id === activeEdgeId ? -1 : 0)));
+      ordered.forEach((edge) => {
+        const from = getCityById(edge.from), to = getCityById(edge.to);
+        if (!from || !to) return;
+        const p1 = percentToPixel(from.x, from.y), p2 = percentToPixel(to.x, to.y);
+        const curve = (edge.curve || 0) * scl;
+        const { d, cx, cy } = makeQuadraticPath(p1.x, p1.y, p2.x, p2.y, curve);
+        const t = edge.labelT != null ? edge.labelT : 0.5;
+        const lp = quadPoint(p1.x, p1.y, cx, cy, p2.x, p2.y, t);
+        const tan = quadTangent(p1.x, p1.y, cx, cy, p2.x, p2.y, t);
+        const nx = -tan.ty, ny = tan.tx;
+        const nudge = (edge.labelNudge || 0) * scl;
+        const lx = lp.x + nx * nudge, ly = lp.y + ny * nudge;
+        const isActive = edge.id === activeEdgeId, isSelected = selectedSet.has(edge.id);
+
+        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        path.setAttribute("d", d);
+        path.setAttribute("class", `edge-path${isActive ? " active" : ""}${isSelected ? " selected" : ""}`);
+        path.setAttribute("stroke", isActive ? "#ea580c" : (isSelected ? "#5a2b22" : "#94a3b8"));
+        path.setAttribute("stroke-opacity", isActive ? "1" : (isSelected ? "0.98" : "0.95"));
+        path.setAttribute("stroke-width", isActive ? String(swAct) : (isSelected ? String(swSel) : String(sw)));
+        edgeLayer.appendChild(path);
+
+        const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        text.setAttribute("x", String(lx));
+        text.setAttribute("y", String(ly + (isActive ? 0.45 : 0.35) * scl));
+        text.setAttribute("class", "edge-label");
+        text.setAttribute("font-size", `${isActive ? fontPxAct : fontPx}px`);
+        text.setAttribute("font-weight", isActive ? "900" : "800");
+        text.setAttribute("fill", isActive ? "#7c2d12" : (isSelected ? "#3f211a" : "#334155"));
+        text.textContent = edge.label;
+        edgeLayer.appendChild(text);
+      });
+    }
+
+    function syncScrubber(idx, total) {
+      if (!total) {
+        stepSlider.disabled = true;
+        stepSlider.min = "0";
+        stepSlider.max = "0";
+        stepSlider.value = "0";
+        scrubberMeta.textContent = "0 / 0";
+        return;
+      }
+      stepSlider.disabled = false;
+      const last = total - 1;
+      const clamped = Math.max(0, Math.min(idx, last));
+      stepSlider.min = "0";
+      stepSlider.max = String(last);
+      stepSlider.value = String(clamped);
+      scrubberMeta.textContent = `${clamped + 1} / ${total}`;
+    }
+
+    function renderStep(idx) {
+      if (!steps.length) { syncScrubber(0, 0); return; }
+      const total = steps.length;
+      currentStep = Math.max(0, Math.min(idx, total - 1));
+      const step = steps[currentStep];
+      renderCitiesFromMask(step.subsetMask);
+      renderEdges(step.activeEdgeId, step.selectedEdgeIds || []);
+      stepBadge.innerHTML = `<span class="k">Step:</span>${currentStep + 1} / ${total} (${step.title})`;
+      stateS.textContent = `S={${maskToCodes(step.subsetMask)}}`;
+      stateJ.textContent = `j=${codeOf(step.endpointIdx)}`;
+      ruleText.textContent = step.ruleText || "—";
+      bestText.textContent = step.bestText || "—";
+      valueText.textContent = step.valueText || "—";
+      routeText.textContent = `Best route: ${step.routeText || "—"}`;
+      candidateList.innerHTML = "";
+      const list = Array.isArray(step.candidates) ? step.candidates : [];
+      if (!list.length) {
+        const li = document.createElement("li");
+        li.textContent = "—";
+        candidateList.appendChild(li);
+      } else {
+        list.forEach((item) => {
+          const li = document.createElement("li");
+          li.textContent = item;
+          candidateList.appendChild(li);
+        });
+      }
+      syncScrubber(currentStep, total);
+    }
+
+    function stopPlay() {
+      if (playTimer) {
+        clearInterval(playTimer);
+        playTimer = null;
+        playBtn.textContent = "Play";
+      }
+    }
+    function rebuild() {
+      stopPlay();
+      const start = parseInt(startSelect.value, 10) || 0;
+      steps = computeHeldKarpSteps(start);
+      renderStep(0);
+    }
+    function nextStep() { if (steps.length) renderStep(currentStep + 1); }
+    function prevStep() { if (steps.length) renderStep(currentStep - 1); }
+    function resetSteps() { stopPlay(); renderStep(0); }
+    function goToLastStep() { if (!steps.length) return; stopPlay(); renderStep(steps.length - 1); }
+    function togglePlay() {
+      if (playTimer) { stopPlay(); return; }
       playBtn.textContent = "Pause";
-      timer = setInterval(() => {
+      playTimer = setInterval(() => {
+        if (!steps.length) return;
         if (currentStep >= steps.length - 1) { stopPlay(); return; }
-        renderStep(currentStep + 1);
-      }, 1300);
-    });
+        nextStep();
+      }, 1350);
+    }
+
+    let relayoutScheduled = false;
+    function scheduleRelayout() {
+      if (relayoutScheduled) return;
+      relayoutScheduled = true;
+      requestAnimationFrame(() => {
+        relayoutScheduled = false;
+        positionCityNodes();
+        renderStep(currentStep);
+      });
+    }
+    function relayout() {
+      positionCityNodes();
+      renderStep(currentStep);
+    }
+
+    createCityNodes();
+    document.getElementById("prevBtn").addEventListener("click", prevStep);
+    document.getElementById("nextBtn").addEventListener("click", nextStep);
+    document.getElementById("resetBtn").addEventListener("click", resetSteps);
+    document.getElementById("lastBtn").addEventListener("click", goToLastStep);
+    playBtn.addEventListener("click", togglePlay);
+    startSelect.addEventListener("change", rebuild);
     stepSlider.addEventListener("input", () => {
       stopPlay();
       const v = parseInt(stepSlider.value, 10);
       if (!Number.isNaN(v)) renderStep(v);
     });
-    startSelect.addEventListener("change", rebuild);
-    window.addEventListener("resize", () => requestAnimationFrame(positionCityNodes));
 
-    createCityNodes();
-    function onReady() { rebuild(); positionCityNodes(); }
-    if (mapBgImg && mapBgImg.complete && mapBgImg.naturalWidth) onReady();
-    else if (mapBgImg) mapBgImg.addEventListener("load", onReady, { once: true });
-    else onReady();
+    window.addEventListener("resize", scheduleRelayout);
+    if (typeof ResizeObserver !== "undefined") {
+      const ro = new ResizeObserver(() => scheduleRelayout());
+      ro.observe(mapStage);
+    }
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", scheduleRelayout);
+      window.visualViewport.addEventListener("scroll", scheduleRelayout);
+    }
+
+    function onMapReady() {
+      renderFormula();
+      rebuild();
+      relayout();
+    }
+    if (mapBgImg && mapBgImg.complete && mapBgImg.naturalWidth) onMapReady();
+    else if (mapBgImg) mapBgImg.addEventListener("load", onMapReady, { once: true });
+    else onMapReady();
+    const mjScript = document.getElementById("mathjax-script");
+    if (mjScript) mjScript.addEventListener("load", () => { formulaRenderAttempts = 0; renderFormula(); });
 
     /*
-    STEP1_BALANCE_APPENDIX
-    A001
-    A002
-    A003
-    A004
-    A005
-    A006
-    A007
-    A008
-    A009
-    A010
-    A011
-    A012
-    A013
-    A014
-    A015
-    A016
-    A017
-    A018
-    A019
-    A020
-    A021
-    A022
-    A023
-    A024
-    A025
-    A026
-    A027
-    A028
-    A029
-    A030
-    A031
-    A032
-    A033
-    A034
-    A035
-    A036
-    A037
-    A038
-    A039
-    A040
-    A041
-    A042
-    A043
-    A044
-    A045
-    A046
-    A047
-    A048
-    A049
-    A050
-    A051
-    A052
-    A053
-    A054
-    A055
-    A056
-    A057
-    A058
-    A059
-    A060
-    A061
-    A062
-    A063
-    A064
-    A065
+    STEP2_BALANCE_APPENDIX
+    B001
+    B002
+    B003
+    B004
+    B005
+    B006
+    B007
+    B008
+    B009
+    B010
+    B011
+    B012
+    B013
+    B014
+    B015
+    B016
+    B017
+    B018
+    B019
+    B020
+    B021
+    B022
+    B023
+    B024
+    B025
+    B026
+    B027
+    B028
+    B029
+    B030
+    B031
+    B032
+    B033
+    B034
+    B035
+    B036
+    B037
+    B038
+    B039
+    B040
+    B041
+    B042
+    B043
+    B044
+    B045
+    B046
+    B047
+    B048
+    B049
+    B050
+    B051
+    B052
+    B053
+    B054
+    B055
+    B056
+    B057
+    B058
+    B059
+    B060
+    B061
+    B062
+    B063
+    B064
+    B065
+    B066
+    B067
+    B068
+    B069
+    B070
+    B071
+    B072
+    B073
+    B074
+    B075
+    B076
+    B077
+    B078
+    B079
+    B080
+    B081
+    B082
+    B083
+    B084
+    B085
+    B086
+    B087
+    B088
+    B089
+    B090
+    B091
+    B092
+    B093
+    B094
+    B095
+    B096
+    B097
+    B098
+    B099
+    B100
+    B101
+    B102
+    B103
+    B104
+    B105
+    B106
+    B107
+    B108
+    B109
+    B110
+    B111
+    B112
+    B113
+    B114
+    B115
+    B116
+    B117
+    B118
+    B119
+    B120
+    B121
+    B122
+    B123
+    B124
+    B125
+    B126
+    B127
+    B128
+    B129
+    B130
+    B131
+    B132
+    B133
+    B134
+    B135
+    B136
+    B137
+    B138
+    B139
+    B140
+    B141
+    B142
+    B143
+    B144
+    B145
+    B146
+    B147
+    B148
+    B149
+    B150
+    B151
+    B152
+    B153
+    B154
+    B155
+    B156
+    B157
+    B158
+    B159
+    B160
+    B161
+    B162
+    B163
+    B164
+    B165
+    B166
+    B167
+    B168
+    B169
+    B170
+    B171
+    B172
+    B173
+    B174
+    B175
+    B176
+    B177
+    B178
+    B179
+    B180
+    B181
+    B182
+    B183
+    B184
+    B185
+    B186
+    B187
+    B188
+    B189
+    B190
+    B191
+    B192
+    B193
+    B194
+    B195
+    B196
+    B197
+    B198
+    B199
+    B200
+    B201
+    B202
+    B203
+    B204
+    B205
+    B206
+    B207
+    B208
+    B209
+    B210
+    B211
+    B212
+    B213
+    B214
+    B215
+    B216
+    B217
+    B218
+    B219
+    B220
+    B221
+    B222
+    B223
+    B224
+    B225
+    B226
+    B227
+    B228
+    B229
+    B230
+    B231
+    B232
+    B233
+    B234
+    B235
+    B236
+    B237
+    B238
+    B239
+    B240
+    B241
+    B242
+    B243
+    B244
+    B245
+    B246
+    B247
+    B248
+    B249
+    B250
+    B251
+    B252
+    B253
+    B254
+    B255
+    B256
+    B257
+    B258
+    B259
+    B260
+    B261
+    B262
+    B263
+    B264
+    B265
+    B266
+    B267
+    B268
+    B269
+    B270
+    B271
+    B272
+    B273
+    B274
+    B275
+    B276
+    B277
+    B278
+    B279
+    B280
+    B281
+    B282
+    B283
+    B284
+    B285
+    B286
+    B287
+    B288
+    B289
+    B290
+    B291
+    B292
+    B293
+    B294
+    B295
+    B296
+    B297
+    B298
+    B299
+    B300
     */
   </script>
 </body>
