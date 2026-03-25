@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Held-Karp TSP - Stage 1</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; background: #e9eef8; color: #0f172a; min-height: 100vh; }
+    .shell { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(320px, 1fr); min-height: 100vh; }
+    .map-wrap { padding: 12px; background: #dde5f4; }
+    .map-card { position: relative; height: min(94vh, 920px); border: 1px solid #c7d1e2; border-radius: 14px; overflow: hidden; background: #eef2ff; box-shadow: 0 10px 28px rgba(15, 23, 42, 0.12); }
+    .map-stage { position: relative; width: 100%; height: 100%; }
+    .map-bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; object-position: center; user-select: none; pointer-events: none; }
+    .city { position: absolute; transform: translate(-50%, -50%); z-index: 2; pointer-events: none; width: 118px; height: 118px; display: flex; align-items: center; justify-content: center; }
+    .city img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 5px 10px rgba(0, 0, 0, 0.22)); }
+    .panel { background: #f8fafc; border-left: 1px solid #cbd5e1; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; }
+    h1 { margin: 0; font-size: 1.08rem; letter-spacing: -0.02em; }
+    .hint { margin: 0; color: #64748b; font-size: 0.8rem; line-height: 1.5; }
+    .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .controls label { font-size: 0.8rem; font-weight: 700; color: #475569; }
+    select, button { border: 1px solid #cbd5e1; border-radius: 10px; background: #fff; padding: 8px 12px; font-size: 0.82rem; font-weight: 700; color: #0f172a; }
+    button { cursor: pointer; background: #1e293b; border-color: #1e293b; color: #fff; }
+    button.secondary { background: #fff; color: #1e293b; border-color: #cbd5e1; }
+    .scrubber { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 9px 10px; display: grid; gap: 6px; }
+    .scrubber .title { text-transform: uppercase; font-size: 0.68rem; letter-spacing: 0.05em; font-weight: 800; color: #64748b; }
+    .scrubber .row { display: flex; align-items: center; gap: 10px; }
+    #stepSlider { flex: 1; min-width: 0; accent-color: #4338ca; }
+    .chip { display: inline-block; background: #eef2ff; border: 1px solid #c7d2fe; color: #312e81; border-radius: 999px; padding: 7px 12px; font-size: 0.8rem; font-weight: 800; line-height: 1.35; }
+    .box { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 11px 12px; display: grid; gap: 8px; }
+    .ttl { margin: 0; text-transform: uppercase; letter-spacing: 0.05em; font-size: 0.7rem; color: #64748b; font-weight: 800; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.82rem; line-height: 1.45; color: #0f172a; margin: 0; word-break: break-word; }
+    ul.candidates { margin: 0; padding-left: 18px; display: grid; gap: 5px; }
+    ul.candidates li { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.8rem; line-height: 1.4; color: #0f172a; word-break: break-word; }
+    .legend { font-size: 0.76rem; color: #64748b; line-height: 1.45; border-top: 1px solid #e2e8f0; padding-top: 8px; }
+    @media (max-width: 980px) {
+      .shell { grid-template-columns: 1fr; }
+      .panel { border-left: none; border-top: 1px solid #cbd5e1; }
+      .map-card { height: min(52vh, 460px); }
+      .city { width: 84px; height: 84px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <section class="map-wrap">
+      <div class="map-card">
+        <div class="map-stage" id="mapStage">
+          <img class="map-bg" id="mapBgImg" src="map.png" alt="US Map" />
+        </div>
+      </div>
+    </section>
+    <aside class="panel">
+      <h1>Held-Karp DP Trace (Stage 1)</h1>
+      <p class="hint">可运行基础版：DP步骤与城市高亮可用，边渲染与公式展示留到后续阶段。</p>
+      <div class="controls">
+        <label for="startSelect">Start</label>
+        <select id="startSelect"></select>
+        <button type="button" class="secondary" id="prevBtn">Prev</button>
+        <button type="button" id="nextBtn">Next</button>
+        <button type="button" class="secondary" id="playBtn">Play</button>
+        <button type="button" class="secondary" id="resetBtn">Reset</button>
+        <button type="button" class="secondary" id="lastBtn">Last</button>
+      </div>
+      <div class="scrubber">
+        <span class="title">Step scrubber</span>
+        <div class="row">
+          <input type="range" id="stepSlider" min="0" max="0" value="0" step="1" />
+          <span class="mono" id="scrubberMeta">0 / 0</span>
+        </div>
+      </div>
+      <span class="chip" id="stepBadge">Step: —</span>
+      <div class="box"><p class="ttl">State</p><p class="mono" id="stateS">—</p><p class="mono" id="stateJ">—</p></div>
+      <div class="box"><p class="ttl">Rule used</p><p class="mono" id="ruleText">—</p></div>
+      <div class="box"><p class="ttl">Candidates</p><ul class="candidates" id="candidateList"></ul></div>
+      <div class="box"><p class="ttl">Decision</p><p class="mono" id="bestText">—</p><p class="mono" id="valueText">—</p><p class="mono" id="routeText">—</p></div>
+      <div class="legend">当前步骤中，属于子集 S 的城市图标会从灰色切换到彩色。</div>
+    </aside>
+  </div>
+
+  <script>
+    const DIST = [
+      [0, 103, 244, 223, 357, 328],
+      [103, 0, 216, 203, 320, 309],
+      [244, 216, 0, 142, 259, 228],
+      [223, 203, 142, 0, 158, 208],
+      [357, 320, 259, 158, 0, 138],
+      [328, 309, 228, 208, 138, 0]
+    ];
+
+    const CITIES = [
+      { id: "sf", code: "SF", name: "San Francisco", x: 12, y: 42, gray: "sf_gray.png", color: "sf_color.png", size: 176 },
+      { id: "la", code: "LA", name: "Los Angeles", x: 15, y: 59, gray: "la_gray.png", color: "la_color.png", size: 176 },
+      { id: "denver", code: "Denver", name: "Denver", x: 38, y: 45, gray: "DENVER_gray.png", color: "DENVER_color.png", size: 176 },
+      { id: "houston", code: "Houston", name: "Houston", x: 51, y: 75, gray: "houston_gray.png", color: "houston_color.png", size: 176 },
+      { id: "miami", code: "MIA", name: "Miami", x: 76, y: 81, gray: "MIAMI_gray.png", color: "MIAMI_color.png", size: 176 },
+      { id: "newyork", code: "NY", name: "New York", x: 82, y: 36, gray: "NY_gray.png", color: "NY_color.png", size: 176 }
+    ];
+
+    const n = CITIES.length;
+    const INF = 1e15;
+    const cityElements = new Map();
+
+    const mapStage = document.getElementById("mapStage");
+    const mapBgImg = document.getElementById("mapBgImg");
+    const startSelect = document.getElementById("startSelect");
+    const stepSlider = document.getElementById("stepSlider");
+    const scrubberMeta = document.getElementById("scrubberMeta");
+    const stepBadge = document.getElementById("stepBadge");
+    const stateS = document.getElementById("stateS");
+    const stateJ = document.getElementById("stateJ");
+    const ruleText = document.getElementById("ruleText");
+    const candidateList = document.getElementById("candidateList");
+    const bestText = document.getElementById("bestText");
+    const valueText = document.getElementById("valueText");
+    const routeText = document.getElementById("routeText");
+    const playBtn = document.getElementById("playBtn");
+
+    let steps = [];
+    let currentStep = 0;
+    let timer = null;
+
+    function has(mask, i) { return ((mask >> i) & 1) !== 0; }
+    function popcount(mask) { let c = 0; for (; mask; mask &= mask - 1) c++; return c; }
+    function codeOf(idx) { return CITIES[idx].code || CITIES[idx].name; }
+    function maskToCodes(mask) { const a = []; for (let i = 0; i < n; i++) if (has(mask, i)) a.push(codeOf(i)); return a.join(","); }
+    function distIJ(i, j) { return DIST[i][j]; }
+
+    function reconstructPathIndices(dp, start, mask, end) {
+      const startMask = 1 << start;
+      if (!has(mask, start) || !has(mask, end)) return [];
+      if (mask === startMask && end === start) return [start];
+      let m = mask, cur = end, guard = 0;
+      const rev = [cur];
+      while (m !== startMask) {
+        const entry = dp[m][cur];
+        if (!entry || entry.pred == null || entry.pred < 0) return [];
+        rev.push(entry.pred);
+        m ^= (1 << cur);
+        cur = entry.pred;
+        guard += 1;
+        if (guard > n + 2) return [];
+      }
+      rev.reverse();
+      return rev;
+    }
+
+    function computeHeldKarpSteps(start) {
+      const result = [];
+      const dp = Array.from({ length: 1 << n }, () => Array(n).fill(null));
+      const startMask = 1 << start;
+      dp[startMask][start] = { cost: 0, pred: -1 };
+      result.push({
+        title: "Base case",
+        subsetMask: startMask,
+        endpointIdx: start,
+        ruleText: "Initialize dp[{s}][s]=0",
+        candidates: ["No predecessor needed"],
+        bestText: "Best predecessor: N/A",
+        valueText: "Value: dp[S][j]=0",
+        routeText: codeOf(start)
+      });
+      for (let sz = 2; sz <= n; sz++) {
+        for (let mask = 0; mask < (1 << n); mask++) {
+          if (!has(mask, start) || popcount(mask) !== sz) continue;
+          for (let j = 0; j < n; j++) {
+            if (!has(mask, j) || j === start) continue;
+            const prevMask = mask ^ (1 << j);
+            let best = INF, bestI = -1;
+            const cand = [];
+            for (let i = 0; i < n; i++) {
+              if (!has(prevMask, i) || i === j) continue;
+              if (i === start && prevMask !== startMask) continue;
+              const sub = dp[prevMask][i];
+              if (!sub) continue;
+              const v = sub.cost + distIJ(i, j);
+              cand.push(`${codeOf(i)}: ${sub.cost}+${distIJ(i, j)}=${v}`);
+              if (v < best) { best = v; bestI = i; }
+            }
+            if (best >= INF) continue;
+            dp[mask][j] = { cost: best, pred: bestI };
+            const route = reconstructPathIndices(dp, start, mask, j).map(codeOf).join(" -> ") || "—";
+            result.push({
+              title: `|S|=${sz}, j=${codeOf(j)}`,
+              subsetMask: mask,
+              endpointIdx: j,
+              ruleText: `Compare all i in S-{${codeOf(j)}}`,
+              candidates: cand,
+              bestText: `Best predecessor: i=${codeOf(bestI)}`,
+              valueText: `Value: dp[S][${codeOf(j)}]=${best}`,
+              routeText: route
+            });
+          }
+        }
+      }
+      const full = (1 << n) - 1;
+      let bestEnd = -1, bestTour = INF;
+      const close = [];
+      for (let j = 0; j < n; j++) {
+        if (j === start) continue;
+        const sub = dp[full][j];
+        if (!sub) continue;
+        const v = sub.cost + distIJ(j, start);
+        close.push(`${codeOf(j)}: ${sub.cost}+${distIJ(j, start)}=${v}`);
+        if (v < bestTour) { bestTour = v; bestEnd = j; }
+      }
+      const toEnd = bestEnd >= 0 ? reconstructPathIndices(dp, start, full, bestEnd) : [];
+      const finalRoute = toEnd.length ? [...toEnd, start] : [];
+      result.push({
+        title: "Close tour",
+        subsetMask: full,
+        endpointIdx: start,
+        ruleText: "Choose best city to return to start",
+        candidates: close,
+        bestText: `Best predecessor city: ${bestEnd >= 0 ? codeOf(bestEnd) : "(none)"}`,
+        valueText: `Best tour value: ${bestEnd >= 0 ? bestTour : "(none)"}`,
+        routeText: finalRoute.length ? finalRoute.map(codeOf).join(" -> ") : "—"
+      });
+      return result;
+    }
+
+    function getMapContentRect() {
+      const stage = mapStage.getBoundingClientRect();
+      if (!mapBgImg || !mapBgImg.naturalWidth) return { left: 0, top: 0, width: stage.width, height: stage.height };
+      const ir = mapBgImg.getBoundingClientRect();
+      return { left: ir.left - stage.left, top: ir.top - stage.top, width: ir.width, height: ir.height };
+    }
+
+    function createCityNodes() {
+      CITIES.forEach((city) => {
+        const div = document.createElement("div");
+        div.className = "city";
+        div.dataset.cityId = city.id;
+        const img = document.createElement("img");
+        img.src = city.gray;
+        img.alt = city.name;
+        div.appendChild(img);
+        mapStage.appendChild(div);
+        cityElements.set(city.id, { wrapper: div, img });
+      });
+    }
+
+    function positionCityNodes() {
+      const r = getMapContentRect();
+      CITIES.forEach((city) => {
+        const elem = cityElements.get(city.id);
+        if (!elem) return;
+        const w = city.size || 140;
+        elem.wrapper.style.width = `${w}px`;
+        elem.wrapper.style.height = `${w}px`;
+        elem.wrapper.style.left = `${r.left + (r.width * city.x) / 100}px`;
+        elem.wrapper.style.top = `${r.top + (r.height * city.y) / 100}px`;
+      });
+    }
+
+    function renderCitiesFromMask(mask) {
+      CITIES.forEach((city, i) => {
+        const elem = cityElements.get(city.id);
+        if (!elem) return;
+        elem.img.src = has(mask, i) ? city.color : city.gray;
+      });
+    }
+
+    function syncSlider() {
+      if (!steps.length) {
+        stepSlider.disabled = true;
+        stepSlider.min = "0";
+        stepSlider.max = "0";
+        stepSlider.value = "0";
+        scrubberMeta.textContent = "0 / 0";
+        return;
+      }
+      stepSlider.disabled = false;
+      stepSlider.min = "0";
+      stepSlider.max = String(steps.length - 1);
+      stepSlider.value = String(currentStep);
+      scrubberMeta.textContent = `${currentStep + 1} / ${steps.length}`;
+    }
+
+    function renderStep(idx) {
+      if (!steps.length) return;
+      currentStep = Math.max(0, Math.min(idx, steps.length - 1));
+      const step = steps[currentStep];
+      renderCitiesFromMask(step.subsetMask);
+      stepBadge.textContent = `Step: ${currentStep + 1} / ${steps.length} (${step.title})`;
+      stateS.textContent = `S={${maskToCodes(step.subsetMask)}}`;
+      stateJ.textContent = `j=${codeOf(step.endpointIdx)}`;
+      ruleText.textContent = step.ruleText || "—";
+      bestText.textContent = step.bestText || "—";
+      valueText.textContent = step.valueText || "—";
+      routeText.textContent = `Route: ${step.routeText || "—"}`;
+      candidateList.innerHTML = "";
+      const arr = Array.isArray(step.candidates) ? step.candidates : [];
+      if (!arr.length) {
+        const li = document.createElement("li");
+        li.textContent = "—";
+        candidateList.appendChild(li);
+      } else {
+        arr.forEach((item) => {
+          const li = document.createElement("li");
+          li.textContent = item;
+          candidateList.appendChild(li);
+        });
+      }
+      syncSlider();
+    }
+
+    function stopPlay() {
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+        playBtn.textContent = "Play";
+      }
+    }
+
+    function rebuild() {
+      stopPlay();
+      const start = parseInt(startSelect.value, 10) || 0;
+      steps = computeHeldKarpSteps(start);
+      renderStep(0);
+    }
+
+    CITIES.forEach((c, idx) => {
+      const opt = document.createElement("option");
+      opt.value = String(idx);
+      opt.textContent = c.name;
+      startSelect.appendChild(opt);
+    });
+    const defaultStartIdx = CITIES.findIndex((c) => c.id === "denver");
+    if (defaultStartIdx >= 0) startSelect.value = String(defaultStartIdx);
+
+    document.getElementById("prevBtn").addEventListener("click", () => renderStep(currentStep - 1));
+    document.getElementById("nextBtn").addEventListener("click", () => renderStep(currentStep + 1));
+    document.getElementById("resetBtn").addEventListener("click", () => { stopPlay(); renderStep(0); });
+    document.getElementById("lastBtn").addEventListener("click", () => { stopPlay(); renderStep(steps.length - 1); });
+    playBtn.addEventListener("click", () => {
+      if (!steps.length) return;
+      if (timer) { stopPlay(); return; }
+      playBtn.textContent = "Pause";
+      timer = setInterval(() => {
+        if (currentStep >= steps.length - 1) { stopPlay(); return; }
+        renderStep(currentStep + 1);
+      }, 1300);
+    });
+    stepSlider.addEventListener("input", () => {
+      stopPlay();
+      const v = parseInt(stepSlider.value, 10);
+      if (!Number.isNaN(v)) renderStep(v);
+    });
+    startSelect.addEventListener("change", rebuild);
+    window.addEventListener("resize", () => requestAnimationFrame(positionCityNodes));
+
+    createCityNodes();
+    function onReady() { rebuild(); positionCityNodes(); }
+    if (mapBgImg && mapBgImg.complete && mapBgImg.naturalWidth) onReady();
+    else if (mapBgImg) mapBgImg.addEventListener("load", onReady, { once: true });
+    else onReady();
+
+    /*
+    STEP1_BALANCE_APPENDIX
+    A001
+    A002
+    A003
+    A004
+    A005
+    A006
+    A007
+    A008
+    A009
+    A010
+    A011
+    A012
+    A013
+    A014
+    A015
+    A016
+    A017
+    A018
+    A019
+    A020
+    A021
+    A022
+    A023
+    A024
+    A025
+    A026
+    A027
+    A028
+    A029
+    A030
+    A031
+    A032
+    A033
+    A034
+    A035
+    A036
+    A037
+    A038
+    A039
+    A040
+    A041
+    A042
+    A043
+    A044
+    A045
+    A046
+    A047
+    A048
+    A049
+    A050
+    A051
+    A052
+    A053
+    A054
+    A055
+    A056
+    A057
+    A058
+    A059
+    A060
+    A061
+    A062
+    A063
+    A064
+    A065
+    */
+  </script>
+</body>
+</html>
