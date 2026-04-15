@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Greedy TSP — Six Cities</title>
+  <script>
+    window.MathJax = {
+      tex: { inlineMath: [["\\(", "\\)"], ["$", "$"]] },
+      svg: { fontCache: "global" }
+    };
+  </script>
+  <script id="mathjax-script" defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: #e8ecf4;
+      color: #111827;
+      min-height: 100vh;
+    }
+
+    .shell {
+      display: grid;
+      grid-template-columns: minmax(0, 1.55fr) minmax(320px, 0.95fr);
+      gap: 0;
+      min-height: 100vh;
+      max-width: 100%;
+    }
+
+    .map-wrap {
+      position: relative;
+      background: #dfe5f2;
+      padding: 12px;
+      display: flex;
+      align-items: stretch;
+    }
+
+    .map-card {
+      position: relative;
+      flex: 1;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 12px 40px rgba(17, 24, 39, 0.12);
+      border: 1px solid #c7d0e0;
+      min-height: 0;
+      height: min(94vh, 960px);
+    }
+
+    .map-stage {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      background: #eef2ff;
+    }
+
+    .map-bg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      object-position: center;
+      user-select: none;
+      pointer-events: none;
+    }
+
+    svg.edge-layer {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+    }
+
+    .city {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      z-index: 3;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+    }
+
+    .city img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      filter: drop-shadow(0 6px 12px rgba(0,0,0,0.2));
+    }
+
+    .edge-path {
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .edge-path.selected {
+      filter: drop-shadow(0 1px 2px rgba(30, 41, 59, 0.18));
+    }
+
+    .edge-path.active {
+      filter: drop-shadow(0 2px 8px rgba(194, 65, 12, 0.45));
+    }
+
+    .edge-label {
+      font-weight: 800;
+      dominant-baseline: middle;
+      text-anchor: middle;
+    }
+
+    .edge-badge {
+      filter: drop-shadow(0 1px 3px rgba(17, 24, 39, 0.1));
+    }
+
+    .edge-badge.active-callout {
+      filter: drop-shadow(0 3px 10px rgba(194, 65, 12, 0.35));
+    }
+
+    .map-edge-legend {
+      position: absolute;
+      left: 50%;
+      bottom: 10px;
+      transform: translateX(-50%);
+      z-index: 7;
+      background: rgba(255, 255, 255, 0.95);
+      border: 1px solid #b8c5db;
+      border-radius: 14px;
+      box-shadow: 0 6px 16px rgba(17, 24, 39, 0.14);
+      padding: 10px 16px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 12px 28px;
+    }
+
+    .map-edge-legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: #24364f;
+      line-height: 1.3;
+      white-space: nowrap;
+    }
+
+    .map-edge-legend-line {
+      width: 52px;
+      height: 0;
+      border-top: 6px solid;
+      border-radius: 999px;
+      flex-shrink: 0;
+    }
+
+    .map-edge-legend-line.selected {
+      border-top-color: #5a2b22;
+    }
+
+    .map-edge-legend-line.active {
+      border-top-color: #ea580c;
+    }
+
+    .dp-panel {
+      background: #f8fafc;
+      border-left: 1px solid #cbd5e1;
+      padding: 20px 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      overflow-y: auto;
+      max-height: 100vh;
+    }
+
+    .dp-panel h1 {
+      margin: 0;
+      font-size: 1.15rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .dp-panel .hint {
+      margin: 0;
+      font-size: 0.8rem;
+      color: #64748b;
+      line-height: 1.5;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .controls label {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #475569;
+      margin-right: 4px;
+    }
+
+    select#startSelect {
+      padding: 8px 12px;
+      border-radius: 10px;
+      border: 1px solid #cbd5e1;
+      background: #fff;
+      font-weight: 600;
+      font-size: 0.85rem;
+      min-width: 160px;
+    }
+
+    button {
+      border: none;
+      background: #1e293b;
+      color: #fff;
+      padding: 8px 14px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 0.8rem;
+    }
+
+    button:hover { opacity: 0.9; }
+    button.secondary {
+      background: #fff;
+      color: #1e293b;
+      border: 1px solid #cbd5e1;
+    }
+
+    .step-meta {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+
+    .meta-chip {
+      display: block;
+      width: 100%;
+      padding: 8px 12px;
+      border-radius: 12px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      background: #eef2ff;
+      color: #1e1b7a;
+      border: 1px solid #c7d2fe;
+      line-height: 1.35;
+    }
+
+    .meta-chip .k {
+      color: #3730a3;
+      font-weight: 800;
+      margin-right: 6px;
+    }
+
+    .formula-teach {
+      background: #ffffff;
+      border: 1px solid #dbeafe;
+      border-radius: 14px;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .formula-teach .title {
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #1d4ed8;
+    }
+
+    .formula-teach .main {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: nowrap;
+      color: #111827;
+      text-align: center;
+      white-space: nowrap;
+      overflow-x: auto;
+      padding: 2px 0 6px;
+    }
+
+    .formula-teach .plain-rule {
+      font-size: 1.04rem;
+      font-weight: 800;
+      color: #0f172a;
+      white-space: normal;
+      line-height: 1.4;
+    }
+
+    .formula-teach .main mjx-container[display="true"] {
+      margin: 0 !important;
+      font-size: 124%;
+    }
+
+    .formula-teach .note {
+      font-size: 0.78rem;
+      color: #334155;
+      line-height: 1.5;
+    }
+
+    .equation-box {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 14px 16px;
+      flex: 1;
+      min-height: 120px;
+    }
+
+    .equation-title {
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #475569;
+      margin-bottom: 8px;
+      display: block;
+    }
+
+    .calc-grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    .calc-section {
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      padding: 9px 10px;
+      background: #fafafa;
+    }
+
+    .calc-section.state {
+      background: #f8faff;
+      border-color: #dbeafe;
+    }
+
+    .calc-section.decision {
+      background: #fff7ed;
+      border-color: #fed7aa;
+    }
+
+    .calc-head {
+      font-size: 0.68rem;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: #475569;
+      margin-bottom: 6px;
+    }
+
+    .calc-line {
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 0.85rem;
+      line-height: 1.55;
+      color: #0f172a;
+      word-break: break-word;
+      margin: 0;
+    }
+
+    .calc-line + .calc-line {
+      margin-top: 5px;
+    }
+
+    .calc-candidates {
+      margin: 0;
+      padding-left: 18px;
+      display: grid;
+      gap: 6px;
+    }
+
+    .calc-candidates li {
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 0.84rem;
+      line-height: 1.45;
+      color: #0f172a;
+      word-break: break-word;
+    }
+
+    .kv {
+      display: grid;
+      grid-template-columns: 100px 1fr;
+      gap: 8px 10px;
+      font-size: 0.82rem;
+    }
+
+    .kv .k { color: #64748b; font-weight: 700; }
+    .kv .v {
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      font-weight: 600;
+      color: #0f172a;
+      word-break: break-word;
+    }
+
+    .step-scrubber {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 2px;
+      padding: 10px 12px;
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+    }
+
+    .step-scrubber .scrubber-label {
+      font-size: 0.68rem;
+      font-weight: 800;
+      color: #64748b;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .scrubber-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    #stepSlider {
+      flex: 1;
+      min-width: 0;
+      height: 32px;
+      cursor: grab;
+      accent-color: #4338ca;
+    }
+
+    #stepSlider:active {
+      cursor: grabbing;
+    }
+
+    #stepSlider:disabled {
+      cursor: not-allowed;
+      opacity: 0.45;
+    }
+
+    .scrubber-meta {
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      font-size: 0.75rem;
+      font-weight: 800;
+      color: #334155;
+      min-width: 5.5em;
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    .legend-mini {
+      font-size: 0.75rem;
+      color: #64748b;
+      line-height: 1.6;
+      padding-top: 8px;
+      border-top: 1px solid #e2e8f0;
+    }
+
+    @media (max-width: 960px) {
+      .shell {
+        grid-template-columns: 1fr;
+      }
+      .map-card {
+        height: min(52vh, 460px);
+      }
+      .map-edge-legend {
+        bottom: 8px;
+        width: calc(100% - 18px);
+        max-width: 520px;
+        padding: 9px 10px;
+        gap: 10px 16px;
+      }
+      .map-edge-legend-item {
+        font-size: 0.84rem;
+      }
+      .map-edge-legend-line {
+        width: 40px;
+        border-top-width: 5px;
+      }
+      .dp-panel {
+        border-left: none;
+        border-top: 1px solid #cbd5e1;
+        max-height: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="map-wrap">
+      <div class="map-card">
+        <div class="map-stage" id="mapStage">
+          <img class="map-bg" id="mapBgImg" src="map.png" alt="US Map" />
+          <svg class="edge-layer" id="edgeLayer"></svg>
+          <div class="map-edge-legend" aria-label="Map line legend">
+            <div class="map-edge-legend-item">
+              <span class="map-edge-legend-line selected"></span>
+              <span>Best path for this state</span>
+            </div>
+            <div class="map-edge-legend-item">
+              <span class="map-edge-legend-line active"></span>
+              <span>Current transition edge</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <aside class="dp-panel">
+      <h1>Greedy Trace</h1>
+
+      <div class="controls">
+        <label for="startSelect">Start</label>
+        <select id="startSelect" aria-label="Start city"></select>
+        <button type="button" class="secondary" id="prevBtn">Prev</button>
+        <button type="button" id="nextBtn">Next</button>
+        <button type="button" class="secondary" id="playBtn">Play</button>
+        <button type="button" class="secondary" id="resetBtn">Reset</button>
+        <button type="button" class="secondary" id="lastBtn">Last</button>
+      </div>
+
+      <div class="step-scrubber">
+        <span class="scrubber-label">Step scrubber</span>
+        <div class="scrubber-row">
+          <input type="range" id="stepSlider" min="0" max="0" value="0" step="1" aria-label="DP step" />
+          <span class="scrubber-meta" id="scrubberMeta">0 / 0</span>
+        </div>
+      </div>
+
+      <div class="step-meta">
+        <span class="meta-chip" id="stepBadge"><span class="k">Step:</span>—</span>
+      </div>
+
+      <div class="formula-teach">
+        <div class="title">Greedy selection rule</div>
+        <div class="main" id="formulaMain" aria-label="Greedy selection formula"></div>
+      </div>
+
+      <div class="equation-box">
+        <span class="equation-title">Step explanation</span>
+        <div class="calc-grid">
+          <div class="calc-section state">
+            <div class="calc-head">State</div>
+            <p class="calc-line" id="calcStateS">—</p>
+            <p class="calc-line" id="calcStateJ">—</p>
+            <p class="calc-line" id="calcStateU">—</p>
+          </div>
+          <div class="calc-section">
+            <div class="calc-head">Rule used in this step</div>
+            <p class="calc-line" id="calcRule">—</p>
+          </div>
+          <div class="calc-section">
+            <div class="calc-head">Candidates compared</div>
+            <ul class="calc-candidates" id="calcCandidates"></ul>
+          </div>
+          <div class="calc-section decision">
+            <div class="calc-head">Decision</div>
+            <p class="calc-line" id="calcBest">—</p>
+            <p class="calc-line" id="calcValue">—</p>
+            <p class="calc-line" id="calcRoute">—</p>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    /**
+     * Six-city complete graph, symmetric integer weights based on
+     * rounded average one-way domestic airfare data (DOT Consumer Airfare Report).
+     * Order: SF, LA, Denver, Houston, Miami, NY
+     */
+    const DIST = [
+      [0, 161, 223, 327, 277, 438],
+      [161, 0, 182, 213, 321, 404],
+      [223, 182, 0, 211, 237, 262],
+      [327, 213, 211, 0, 172, 232],
+      [277, 321, 237, 172, 0, 179],
+      [438, 404, 262, 232, 179, 0]
+    ];
+
+    const CITIES = [
+      { id: "sf", code: "SF", name: "San Francisco", x: 12, y: 42, gray: "sf_gray.png", color: "sf_color.png", size: 200 },
+      { id: "la", code: "LA", name: "Los Angeles", x: 15, y: 59, gray: "la_gray.png", color: "la_color.png", size: 200 },
+      { id: "denver", code: "Denver", name: "Denver", x: 38, y: 45, gray: "denver_gray.png", color: "denver_color.png", size: 200 },
+      { id: "houston", code: "Houston", name: "Houston", x: 51, y: 75, gray: "houston_gray.png", color: "houston_color.png", size: 200 },
+      { id: "miami", code: "MIA", name: "Miami", x: 76, y: 81, gray: "miami_gray.png", color: "miami_color.png", size: 200 },
+      { id: "newyork", code: "NY", name: "New York", x: 82, y: 36, gray: "NY_gray.png", color: "NY_color.png", size: 200 }
+    ];
+
+    const n = CITIES.length;
+    const INF = 1e15;
+
+    // Undirected edges: curve, label t along arc, labelNudge = px offset along curve normal (× scl)
+    const EDGE_STYLE = {
+      "denver-houston": { curve: 10, t: 0.40, nudge: -12  },
+      "denver-la": { curve: -14, t: 0.62, nudge: -14 },
+      "denver-miami": { curve: 22, t: 0.34, nudge: -14 },
+      "denver-newyork": { curve: -20, t: 0.58, nudge: 20 },
+      "denver-sf": { curve: 16, t: 0.44, nudge: -18 },
+      "houston-la": { curve: 12, t: 0.35, nudge: 12 },
+      "houston-miami": { curve: -8, t: 0.52, nudge: -10 },
+      "houston-newyork": { curve: 14, t: 0.52, nudge: 18 },
+      "houston-sf": { curve: -22, t: 0.48, nudge: 22 },
+      "la-miami": { curve: -28, t: 0.43, nudge: -14 },
+      "la-newyork": { curve: 24, t: 0.54, nudge: 14 },
+      "la-sf": { curve: 8, t: 0.5, nudge: 8 },
+      "miami-newyork": { curve: 14, t: 0.4, nudge: -16 },
+      "miami-sf": { curve: -18, t: 0.56, nudge: 10 },
+      "newyork-sf": { curve: -26, t: 0.47, nudge: -12 }
+    };
+
+    function edgeKey(a, b) {
+      return a < b ? `${a}-${b}` : `${b}-${a}`;
+    }
+
+    function buildEdges() {
+      const list = [];
+      for (let i = 0; i < n; i++) {
+        for (let j = i + 1; j < n; j++) {
+          const a = CITIES[i].id;
+          const b = CITIES[j].id;
+          const key = edgeKey(a, b);
+          const st = EDGE_STYLE[key] || { curve: 0, t: 0.5, nudge: 0 };
+          list.push({
+            id: key,
+            from: a,
+            to: b,
+            label: String(DIST[i][j]),
+            curve: st.curve,
+            labelT: st.t,
+            labelNudge: st.nudge != null ? st.nudge : 0
+          });
+        }
+      }
+      return list;
+    }
+
+    const EDGES = buildEdges();
+
+    function has(mask, i) {
+      return ((mask >> i) & 1) !== 0;
+    }
+
+    function popcount(mask) {
+      let c = 0;
+      for (; mask; mask &= mask - 1) c++;
+      return c;
+    }
+
+    function maskToNames(mask) {
+      const parts = [];
+      for (let i = 0; i < n; i++) {
+        if (has(mask, i)) parts.push(CITIES[i].name);
+      }
+      return parts.join(", ");
+    }
+
+    function codeOf(idx) {
+      return CITIES[idx].code || CITIES[idx].name;
+    }
+
+    function maskToCodes(mask) {
+      const parts = [];
+      for (let i = 0; i < n; i++) {
+        if (has(mask, i)) parts.push(codeOf(i));
+      }
+      return parts.join(",");
+    }
+
+    function reconstructPathIndices(dp, start, mask, end) {
+      const startMask = 1 << start;
+      if (!has(mask, start) || !has(mask, end)) return [];
+      if (mask === startMask && end === start) return [start];
+
+      let m = mask;
+      let cur = end;
+      const rev = [cur];
+      let guard = 0;
+      while (m !== startMask) {
+        const entry = dp[m][cur];
+        if (!entry || entry.pred == null || entry.pred < 0) return [];
+        const prev = entry.pred;
+        rev.push(prev);
+        m ^= (1 << cur);
+        cur = prev;
+        guard += 1;
+        if (guard > n + 2) return [];
+      }
+      rev.reverse();
+      return rev;
+    }
+
+    function edgeIdsFromRoute(routeIndices) {
+      const ids = [];
+      for (let i = 0; i < routeIndices.length - 1; i++) {
+        const a = CITIES[routeIndices[i]].id;
+        const b = CITIES[routeIndices[i + 1]].id;
+        ids.push(edgeKey(a, b));
+      }
+      return ids;
+    }
+
+    function distIJ(i, j) {
+      return DIST[i][j];
+    }
+
+    /**
+     * Greedy nearest-neighbor trace.
+     * At each step, choose the cheapest edge from current city to any unvisited city.
+     */
+    function computeHeldKarpSteps(start) {
+      const steps = [];
+      const visited = new Set([start]);
+      const routeIndices = [start];
+      let mask = 1 << start;
+      let cur = start;
+      let runningCost = 0;
+      const selectedEdgeIds = [];
+
+      steps.push({
+        title: "Initialize",
+        subsetMask: mask,
+        endpointIdx: cur,
+        activeEdgeId: null,
+        selectedEdgeIds: [],
+        ruleText: "Initialize route from the selected start city.",
+        candidates: ["No edge selected yet"],
+        bestText: `Start city: ${codeOf(start)}`,
+        valueText: "Running cost = 0",
+        routeLabel: "Greedy route so far",
+        routeText: `${codeOf(start)}`
+      });
+
+      while (visited.size < n) {
+        const candidates = [];
+        let bestNext = -1;
+        let bestCost = INF;
+        for (let j = 0; j < n; j++) {
+          if (visited.has(j)) continue;
+          const w = distIJ(cur, j);
+          candidates.push(`${codeOf(j)}: w(${codeOf(cur)}, ${codeOf(j)}) = ${w}`);
+          if (w < bestCost) {
+            bestCost = w;
+            bestNext = j;
+          }
+        }
+
+        const activeEdgeId = edgeKey(CITIES[cur].id, CITIES[bestNext].id);
+        const nextMask = mask | (1 << bestNext);
+        const nextRoute = [...routeIndices, bestNext];
+        steps.push({
+          title: `Pick next city from ${codeOf(cur)}`,
+          subsetMask: nextMask,
+          endpointIdx: bestNext,
+          activeEdgeId,
+          selectedEdgeIds: [...selectedEdgeIds],
+          ruleText: `Compare all unvisited cities and choose the minimum edge from ${codeOf(cur)}.`,
+          candidates,
+          bestText: `Selected edge: ${codeOf(cur)} -> ${codeOf(bestNext)}`,
+          valueText: `Added ${bestCost}; running cost = ${runningCost + bestCost}`,
+          routeLabel: "Greedy route so far",
+          routeText: nextRoute.map(codeOf).join(" -> ")
+        });
+
+        selectedEdgeIds.push(activeEdgeId);
+        visited.add(bestNext);
+        routeIndices.push(bestNext);
+        mask = nextMask;
+        cur = bestNext;
+        runningCost += bestCost;
+      }
+
+      const backCost = distIJ(cur, start);
+      const backEdgeId = edgeKey(CITIES[cur].id, CITIES[start].id);
+      const fullRoute = [...routeIndices, start];
+      const finalCost = runningCost + backCost;
+      steps.push({
+        title: "Close tour (return to start)",
+        subsetMask: mask,
+        endpointIdx: start,
+        activeEdgeId: backEdgeId,
+        selectedEdgeIds: [...selectedEdgeIds],
+        ruleText: "All cities are visited. Return to start to close the tour.",
+        candidates: [`${codeOf(cur)} -> ${codeOf(start)}: w(${codeOf(cur)}, ${codeOf(start)}) = ${backCost}`],
+        bestText: `Return edge: ${codeOf(cur)} -> ${codeOf(start)}`,
+        valueText: `Final greedy tour cost = ${finalCost}`,
+        routeLabel: "Greedy tour",
+        routeText: fullRoute.map(codeOf).join(" -> ")
+      });
+
+      return { steps, bestTour: finalCost, start };
+    }
+
+    const mapStage = document.getElementById("mapStage");
+    const mapBgImg = document.getElementById("mapBgImg");
+    const edgeLayer = document.getElementById("edgeLayer");
+    const startSelect = document.getElementById("startSelect");
+    const playBtn = document.getElementById("playBtn");
+    const stepBadge = document.getElementById("stepBadge");
+    const stepSlider = document.getElementById("stepSlider");
+    const scrubberMeta = document.getElementById("scrubberMeta");
+    const calcStateS = document.getElementById("calcStateS");
+    const calcStateJ = document.getElementById("calcStateJ");
+    const calcStateU = document.getElementById("calcStateU");
+    const calcRule = document.getElementById("calcRule");
+    const calcCandidates = document.getElementById("calcCandidates");
+    const calcBest = document.getElementById("calcBest");
+    const calcValue = document.getElementById("calcValue");
+    const calcRoute = document.getElementById("calcRoute");
+    const formulaMain = document.getElementById("formulaMain");
+
+    let currentStep = 0;
+    let playTimer = null;
+    let hk = null;
+    const cityElements = new Map();
+
+    CITIES.forEach((c, idx) => {
+      const opt = document.createElement("option");
+      opt.value = String(idx);
+      opt.textContent = c.name;
+      startSelect.appendChild(opt);
+    });
+    const defaultStartIdx = CITIES.findIndex(c => c.id === "denver");
+    if (defaultStartIdx >= 0) {
+      startSelect.value = String(defaultStartIdx);
+    }
+
+    let formulaRenderAttempts = 0;
+    function renderTeachingFormula() {
+      if (!formulaMain) return;
+      formulaMain.innerHTML = `<span class="plain-rule">At each city, go to the nearest unvisited city.</span>`;
+    }
+
+    function getMapContentRect() {
+      const stage = mapStage.getBoundingClientRect();
+      if (!mapBgImg || !mapBgImg.naturalWidth) {
+        return { left: 0, top: 0, width: stage.width, height: stage.height };
+      }
+      const ir = mapBgImg.getBoundingClientRect();
+      return {
+        left: ir.left - stage.left,
+        top: ir.top - stage.top,
+        width: ir.width,
+        height: ir.height
+      };
+    }
+
+    /** Scale overlay (cities, strokes, labels) with the displayed map bitmap */
+    const MAP_LAYOUT_REF = 520;
+    function getMapLayoutScale(r) {
+      if (!r || !r.width || !r.height) return 1;
+      const m = Math.min(r.width, r.height);
+      return Math.min(2.2, Math.max(0.45, m / MAP_LAYOUT_REF));
+    }
+
+    function percentToPixel(xp, yp) {
+      const r = getMapContentRect();
+      return {
+        x: r.left + (r.width * xp) / 100,
+        y: r.top + (r.height * yp) / 100
+      };
+    }
+
+    function getCityById(id) {
+      return CITIES.find(c => c.id === id);
+    }
+
+    function quadPoint(x1, y1, cx, cy, x2, y2, t) {
+      const u = 1 - t;
+      return {
+        x: u * u * x1 + 2 * u * t * cx + t * t * x2,
+        y: u * u * y1 + 2 * u * t * cy + t * t * y2
+      };
+    }
+
+    function quadTangent(x1, y1, cx, cy, x2, y2, t) {
+      const u = 1 - t;
+      const dx = 2 * u * (cx - x1) + 2 * t * (x2 - cx);
+      const dy = 2 * u * (cy - y1) + 2 * t * (y2 - cy);
+      const len = Math.sqrt(dx * dx + dy * dy) || 1;
+      return { tx: dx / len, ty: dy / len };
+    }
+
+    function makeQuadraticPath(x1, y1, x2, y2, curve) {
+      const mx = (x1 + x2) / 2;
+      const my = (y1 + y2) / 2;
+      const dx = x2 - x1;
+      const dy = y2 - y1;
+      const len = Math.sqrt(dx * dx + dy * dy) || 1;
+      const nx = -dy / len;
+      const ny = dx / len;
+      const cx = mx + nx * curve;
+      const cy = my + ny * curve;
+      return { d: `M ${x1} ${y1} Q ${cx} ${cy} ${x2} ${y2}`, cx, cy };
+    }
+
+    function positionCityNodes() {
+      const r = getMapContentRect();
+      const scl = getMapLayoutScale(r);
+      CITIES.forEach(city => {
+        const elem = cityElements.get(city.id);
+        if (!elem) return;
+        const w = (city.size || 140) * scl;
+        elem.wrapper.style.width = w + "px";
+        elem.wrapper.style.height = w + "px";
+        elem.wrapper.style.left = r.left + (r.width * city.x) / 100 + "px";
+        elem.wrapper.style.top = r.top + (r.height * city.y) / 100 + "px";
+      });
+    }
+
+    function createCityNodes() {
+      CITIES.forEach(city => {
+        const div = document.createElement("div");
+        div.className = "city";
+        div.style.width = (city.size || 140) + "px";
+        div.style.height = (city.size || 140) + "px";
+        div.dataset.cityId = city.id;
+        const img = document.createElement("img");
+        img.src = city.gray;
+        img.alt = city.name;
+        div.appendChild(img);
+        mapStage.appendChild(div);
+        cityElements.set(city.id, { wrapper: div, img });
+      });
+    }
+
+    function renderCitiesFromMask(mask) {
+      CITIES.forEach((city, i) => {
+        const elem = cityElements.get(city.id);
+        if (!elem) return;
+        elem.img.src = has(mask, i) ? city.color : city.gray;
+      });
+    }
+
+    function renderEdges(activeEdgeId, selectedEdgeIds = []) {
+      while (edgeLayer.firstChild) edgeLayer.removeChild(edgeLayer.firstChild);
+      const rect = mapStage.getBoundingClientRect();
+      edgeLayer.setAttribute("viewBox", `0 0 ${rect.width} ${rect.height}`);
+
+      const rMap = getMapContentRect();
+      const scl = getMapLayoutScale(rMap);
+      const sw = 2.8 * scl;
+      const swSelected = 3.4 * scl;
+      const swActive = 5 * scl;
+      const fontPx = 6.5 * scl;
+      const fontPxActive = 9.5 * scl;
+      const badgeRx = 5 * scl;
+      const badgeRxActive = 7 * scl;
+      const selectedSet = new Set(selectedEdgeIds || []);
+
+      const ordered = [...EDGES].sort((a, b) => {
+        if (a.id === activeEdgeId) return 1;
+        if (b.id === activeEdgeId) return -1;
+        return 0;
+      });
+
+  </script>
+</body>
+</html>
