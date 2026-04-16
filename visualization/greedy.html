@@ -831,7 +831,7 @@
     let formulaRenderAttempts = 0;
     function renderTeachingFormula() {
       if (!formulaMain) return;
-      formulaMain.innerHTML = `<span class="plain-rule">At each city, go to the nearest unvisited city.</span>`;
+      formulaMain.innerHTML = `<span class="plain-rule">At each city, choose the lowest-cost unvisited city.</span>`;
     }
 
     function getMapContentRect() {
@@ -957,6 +957,266 @@
         return 0;
       });
 
+      ordered.forEach(edge => {
+        const from = getCityById(edge.from);
+        const to = getCityById(edge.to);
+        if (!from || !to) return;
+        const p1 = percentToPixel(from.x, from.y);
+        const p2 = percentToPixel(to.x, to.y);
+        const curve = (edge.curve || 0) * scl;
+        const { d, cx, cy } = makeQuadraticPath(p1.x, p1.y, p2.x, p2.y, curve);
+        const t = edge.labelT != null ? edge.labelT : 0.5;
+        const lp = quadPoint(p1.x, p1.y, cx, cy, p2.x, p2.y, t);
+        const tan = quadTangent(p1.x, p1.y, cx, cy, p2.x, p2.y, t);
+        const nx = -tan.ty;
+        const ny = tan.tx;
+        const nudge = (edge.labelNudge || 0) * scl;
+        const lx = lp.x + nx * nudge;
+        const ly = lp.y + ny * nudge;
+
+        const isActive = edge.id === activeEdgeId;
+        const isSelected = selectedSet.has(edge.id);
+        const strokeIdle = "#94a3b8";
+        const strokeSelected = "#5a2b22";
+        const strokeActive = "#ea580c";
+
+        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        path.setAttribute("d", d);
+        path.setAttribute("class", "edge-path" + (isActive ? " active" : "") + (isSelected ? " selected" : ""));
+        path.setAttribute("stroke", isActive ? strokeActive : (isSelected ? strokeSelected : strokeIdle));
+        path.setAttribute("stroke-opacity", isActive ? "1" : (isSelected ? "0.98" : "0.95"));
+        path.setAttribute("stroke-width", isActive ? String(swActive) : (isSelected ? String(swSelected) : String(sw)));
+        edgeLayer.appendChild(path);
+
+        const fPx = isActive ? fontPxActive : fontPx;
+        const bRx = isActive ? badgeRxActive : badgeRx;
+        const bwMul = isActive ? 6.2 : 5.5;
+        const padMul = isActive ? 7 : 6;
+        const badgeWidth = Math.max(
+          (isActive ? 22 : 18) * scl,
+          String(edge.label).length * bwMul * scl + padMul * scl
+        );
+        const badgeHeight = (isActive ? 16 : 13) * scl;
+
+        const badge = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        badge.setAttribute("x", lx - badgeWidth / 2);
+        badge.setAttribute("y", ly - badgeHeight / 2);
+        badge.setAttribute("width", badgeWidth);
+        badge.setAttribute("height", badgeHeight);
+        badge.setAttribute("class", "edge-badge" + (isActive ? " active-callout" : ""));
+        badge.setAttribute("rx", String(bRx));
+        badge.setAttribute("ry", String(bRx));
+        if (isActive) {
+          badge.setAttribute("fill", "#ffedd5");
+          badge.setAttribute("stroke", "#c2410c");
+          badge.setAttribute("stroke-width", String(2.2 * scl));
+        } else if (isSelected) {
+          badge.setAttribute("fill", "rgba(244,238,231,0.98)");
+          badge.setAttribute("stroke", "#5a2b22");
+          badge.setAttribute("stroke-width", String(1.3 * scl));
+        } else {
+          badge.setAttribute("fill", "rgba(255,255,255,0.96)");
+          badge.setAttribute("stroke", "#64748b");
+          badge.setAttribute("stroke-width", String(1 * scl));
+        }
+        edgeLayer.appendChild(badge);
+
+        const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        text.setAttribute("x", lx);
+        text.setAttribute("y", ly + (isActive ? 0.45 : 0.35) * scl);
+        text.setAttribute("class", "edge-label");
+        text.setAttribute("font-size", `${fPx}px`);
+        text.setAttribute("fill", isActive ? "#7c2d12" : (isSelected ? "#3f211a" : "#334155"));
+        text.setAttribute("font-weight", isActive ? "900" : "800");
+        text.textContent = edge.label;
+        edgeLayer.appendChild(text);
+      });
+    }
+
+    function syncScrubber(idx, total) {
+      if (!stepSlider || !scrubberMeta) return;
+      if (!total) {
+        stepSlider.disabled = true;
+        stepSlider.min = "0";
+        stepSlider.max = "0";
+        stepSlider.value = "0";
+        scrubberMeta.textContent = "—";
+        return;
+      }
+      stepSlider.disabled = false;
+      const last = total - 1;
+      const clamped = Math.max(0, Math.min(idx, last));
+      stepSlider.min = "0";
+      stepSlider.max = String(last);
+      stepSlider.value = String(clamped);
+      scrubberMeta.textContent = `${clamped + 1} / ${total}`;
+    }
+
+    function renderStep(idx) {
+      if (!hk || !hk.steps.length) {
+        syncScrubber(0, 0);
+        return;
+      }
+      const total = hk.steps.length;
+      const clamped = Math.max(0, Math.min(idx, total - 1));
+      currentStep = clamped;
+      const step = hk.steps[clamped];
+      renderCitiesFromMask(step.subsetMask);
+      renderEdges(step.activeEdgeId, step.selectedEdgeIds || []);
+
+      stepBadge.innerHTML = `<span class="k">Step:</span>${clamped + 1} / ${total} (${step.title})`;
+      const endpoint = step.endpointIdx >= 0 ? codeOf(step.endpointIdx) : "—";
+      if (calcStateS) calcStateS.textContent = `S (visited subset) = {${maskToCodes(step.subsetMask)}}`;
+      if (calcStateJ) calcStateJ.textContent = `cur (current city) = ${endpoint}`;
+      if (calcStateU) {
+        const unvisited = [];
+        for (let i = 0; i < n; i++) {
+          if (!has(step.subsetMask, i)) unvisited.push(codeOf(i));
+        }
+        calcStateU.textContent = `U (unvisited subset) = {${unvisited.length ? unvisited.join(",") : "∅"}}`;
+      }
+      if (calcRule) calcRule.textContent = step.ruleText || "—";
+      if (calcCandidates) {
+        calcCandidates.innerHTML = "";
+        const list = Array.isArray(step.candidates) ? step.candidates : [];
+        if (!list.length) {
+          const li = document.createElement("li");
+          li.textContent = "—";
+          calcCandidates.appendChild(li);
+        } else {
+          list.forEach(item => {
+            const li = document.createElement("li");
+            li.textContent = item;
+            calcCandidates.appendChild(li);
+          });
+        }
+      }
+      if (calcBest) calcBest.textContent = step.bestText || "—";
+      if (calcValue) calcValue.textContent = step.valueText || "—";
+      if (calcRoute) {
+        const label = step.routeLabel || "Best path for this state";
+        calcRoute.textContent = `${label}: ${step.routeText || "—"}`;
+      }
+      syncScrubber(clamped, total);
+    }
+
+    function stopPlay() {
+      if (playTimer) {
+        clearInterval(playTimer);
+        playTimer = null;
+        playBtn.textContent = "Play";
+      }
+    }
+
+    function rebuildHeldKarp() {
+      stopPlay();
+      const start = parseInt(startSelect.value, 10) || 0;
+      hk = computeHeldKarpSteps(start);
+      renderStep(0);
+    }
+
+    function nextStep() {
+      if (!hk) return;
+      renderStep(currentStep + 1);
+    }
+
+    function prevStep() {
+      if (!hk) return;
+      renderStep(currentStep - 1);
+    }
+
+    function resetSteps() {
+      stopPlay();
+      renderStep(0);
+    }
+
+    function goToLastStep() {
+      if (!hk || !hk.steps.length) return;
+      stopPlay();
+      renderStep(hk.steps.length - 1);
+    }
+
+    function togglePlay() {
+      if (playTimer) {
+        clearInterval(playTimer);
+        playTimer = null;
+        playBtn.textContent = "Play";
+        return;
+      }
+      playBtn.textContent = "Pause";
+      playTimer = setInterval(() => {
+        if (!hk) return;
+        if (currentStep >= hk.steps.length - 1) {
+          clearInterval(playTimer);
+          playTimer = null;
+          playBtn.textContent = "Play";
+          return;
+        }
+        nextStep();
+      }, 1400);
+    }
+
+    let relayoutScheduled = false;
+    function scheduleRelayout() {
+      if (relayoutScheduled) return;
+      relayoutScheduled = true;
+      requestAnimationFrame(() => {
+        relayoutScheduled = false;
+        positionCityNodes();
+        renderStep(currentStep);
+      });
+    }
+
+    function relayout() {
+      positionCityNodes();
+      renderStep(currentStep);
+    }
+
+    createCityNodes();
+    startSelect.addEventListener("change", () => {
+      rebuildHeldKarp();
+    });
+
+    document.getElementById("prevBtn").addEventListener("click", prevStep);
+    document.getElementById("nextBtn").addEventListener("click", nextStep);
+    document.getElementById("resetBtn").addEventListener("click", resetSteps);
+    document.getElementById("lastBtn").addEventListener("click", goToLastStep);
+    playBtn.addEventListener("click", togglePlay);
+
+    stepSlider.addEventListener("input", () => {
+      if (!hk || !hk.steps.length) return;
+      stopPlay();
+      const v = parseInt(stepSlider.value, 10);
+      if (Number.isNaN(v)) return;
+      renderStep(v);
+    });
+
+    window.addEventListener("resize", scheduleRelayout);
+    if (typeof ResizeObserver !== "undefined") {
+      const ro = new ResizeObserver(() => scheduleRelayout());
+      ro.observe(mapStage);
+    }
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", scheduleRelayout);
+      window.visualViewport.addEventListener("scroll", scheduleRelayout);
+    }
+
+    function onMapReady() {
+      renderTeachingFormula();
+      rebuildHeldKarp();
+      relayout();
+    }
+    if (mapBgImg && mapBgImg.complete && mapBgImg.naturalWidth) onMapReady();
+    else if (mapBgImg) mapBgImg.addEventListener("load", onMapReady, { once: true });
+    else onMapReady();
+
+    const mjScript = document.getElementById("mathjax-script");
+    if (mjScript) {
+      mjScript.addEventListener("load", () => {
+        formulaRenderAttempts = 0;
+        renderTeachingFormula();
+      });
+    }
   </script>
 </body>
 </html>
